@@ -13,6 +13,7 @@ var _ = fmt.Fprint
 func main() {
 	var command string
 	var args string
+	var shellCommands = []string{"echo", "exit", "type"}
 
 	for {
 		fmt.Fprint(os.Stdout, "$ ")
@@ -33,6 +34,21 @@ func main() {
 		case "echo":
 			args = parts[1]
 			fmt.Println(args)
+		case "type":
+			args = parts[1]
+			found := false
+			for _, cmd := range shellCommands {
+				if args == cmd {
+					found = true
+					break
+				}
+			}
+			if found {
+				fmt.Println(args + " is a shell builtin")
+			} else {
+				fmt.Println(command + ": not found")
+			}
+
 		default:
 			fmt.Println(command + ": command not found")
 		}
