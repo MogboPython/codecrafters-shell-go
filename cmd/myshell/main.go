@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -50,7 +51,14 @@ func main() {
 			}
 
 		default:
-			fmt.Println(command + ": command not found")
+			if _, err := exec.LookPath(command); err == nil {
+				args = parts[1]
+				fmt.Println("Arg #0 (program name): " + command)
+				fmt.Println("Arg #1: " + args)
+				fmt.Printf("Program Signature: %d", rand.Int63n(9000000000)+1000000000)
+			} else {
+				fmt.Println(command + ": command not found")
+			}
 		}
 	}
 }
