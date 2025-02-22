@@ -53,10 +53,10 @@ func main() {
 		default:
 			if _, err := exec.LookPath(command); err == nil {
 				args = parts[1]
-				fmt.Printf("Program was passed %d args (including program name).", len(parts))
+				fmt.Print("Program was passed %d args (including program name\n).", len(parts))
 				fmt.Println("Arg #0 (program name): " + command)
 				fmt.Println("Arg #1: " + args)
-				fmt.Printf("Program Signature: %d", rand.Int63n(9000000000)+1000000000)
+				fmt.Printf("Program Signature: %d\n", rand.Int63n(9000000000)+1000000000)
 			} else {
 				fmt.Println(command + ": command not found")
 			}
