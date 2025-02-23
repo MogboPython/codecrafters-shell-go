@@ -53,7 +53,7 @@ func main() {
 		default:
 			if _, err := exec.LookPath(command); err == nil {
 				args = parts[1]
-				fmt.Printf("Program was passed %d args (including program name\n).", len(parts))
+				fmt.Printf("Program was passed %d args (including program name).\n", len(parts))
 				fmt.Println("Arg #0 (program name): " + command)
 				fmt.Println("Arg #1: " + args)
 				fmt.Printf("Program Signature: %d\n", rand.Int63n(9000000000)+1000000000)
