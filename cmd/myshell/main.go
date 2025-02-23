@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -33,15 +32,17 @@ func main() {
 		input = strings.TrimSpace(input)
 		parts := strings.SplitN(input, " ", 2)
 		command = parts[0]
+		args = ""
+		if len(parts) > 1 {
+			args = parts[1]
+		}
 
 		switch command {
 		case "exit":
 			os.Exit(0)
 		case "echo":
-			args = parts[1]
 			fmt.Println(args)
 		case "type":
-			args = parts[1]
 			if shellCommands[args] {
 				fmt.Println(args + " is a shell builtin")
 			} else if path, err := exec.LookPath(args); err == nil {
@@ -51,14 +52,12 @@ func main() {
 			}
 
 		default:
-			if _, err := exec.LookPath(command); err == nil {
-				args = parts[1]
-				fmt.Printf("Program was passed %d args (including program name).\n", len(parts))
-				fmt.Println("Arg #0 (program name): " + command)
-				fmt.Println("Arg #1: " + args)
-				fmt.Printf("Program Signature: %d\n", rand.Int63n(9000000000)+1000000000)
-			} else {
-				fmt.Println(command + ": command not found")
+			cmd := exec.Command(command, args)
+			cmd.Stderr = os.Stderr
+			cmd.Stdout = os.Stdout
+			err := cmd.Run()
+			if err != nil {
+				fmt.Printf("%s: command not found\n", command)
 			}
 		}
 	}
