@@ -53,12 +53,14 @@ func main() {
 			}
 
 		case "pwd":
-			wd, err := os.Getwd()
-			if err != nil {
-				fmt.Println("Error getting current working directory:", err)
-				return
-			}
+			wd := getWorkingDirectory()
 			fmt.Println(wd)
+
+		case "cd":
+			err := changeWorkingDirectory(args)
+			if err != nil {
+				fmt.Printf("%s: %s: No such file or directory\n", command, args)
+			}
 
 		default:
 			cmd := exec.Command(command, args)
@@ -70,4 +72,21 @@ func main() {
 			}
 		}
 	}
+}
+
+func getWorkingDirectory() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error getting current working directory:", err)
+		return ""
+	}
+	return wd
+}
+
+func changeWorkingDirectory(path string) error {
+	err := os.Chdir(path)
+	if err != nil {
+		return fmt.Errorf("error changing working directory: %v", err)
+	}
+	return nil
 }
