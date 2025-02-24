@@ -89,9 +89,22 @@ func getWorkingDirectory() string {
 }
 
 func changeWorkingDirectory(path string) error {
-	err := os.Chdir(path)
-	if err != nil {
-		return fmt.Errorf("error changing working directory: %v", err)
+	if path == "" || path == "~" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("error getting home directory: %v", err)
+		}
+		return os.Chdir(homeDir)
 	}
-	return nil
+
+	// Handle paths starting with "~/"
+	if strings.HasPrefix(path, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("error getting home directory: %v", err)
+		}
+		path = homeDir + path[1:] // Replace ~ with home directory
+	}
+
+	return os.Chdir(path)
 }
