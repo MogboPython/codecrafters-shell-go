@@ -13,7 +13,7 @@ var _ = fmt.Fprint
 
 func main() {
 	var command string
-	var args string
+	var args []string
 	var shellCommands = map[string]bool{
 		"echo": true,
 		"exit": true,
@@ -30,31 +30,28 @@ func main() {
 			os.Exit(1)
 		}
 
-		// TODO: use this
-		// input = strings.Trim(input, "\r\n")
-		// args := strings.Split(input, " ")
-		// command, args := args[0], args[1:]
-
 		input = strings.TrimSpace(input)
-		parts := strings.SplitN(input, " ", 2)
-		command = parts[0]
-		args = ""
-		if len(parts) > 1 {
-			args = parts[1]
+
+		parsed := parseCommand(input)
+		if len(parsed) == 0 {
+			continue
 		}
+
+		command = parsed[0]
+		args = parsed[1:]
 
 		switch command {
 		case "exit":
 			os.Exit(0)
 		case "echo":
-			fmt.Println(args)
+			fmt.Println(strings.Join(args, " "))
 		case "type":
-			if shellCommands[args] {
-				fmt.Println(args + " is a shell builtin")
-			} else if path, err := exec.LookPath(args); err == nil {
-				fmt.Println(args + " is " + path)
+			if shellCommands[args[0]] {
+				fmt.Println(args[0] + " is a shell builtin")
+			} else if path, err := exec.LookPath(args[0]); err == nil {
+				fmt.Println(args[0] + " is " + path)
 			} else {
-				fmt.Println(args + ": not found")
+				fmt.Println(args[0] + ": not found")
 			}
 
 		case "pwd":
@@ -62,13 +59,13 @@ func main() {
 			fmt.Println(wd)
 
 		case "cd":
-			err := changeWorkingDirectory(args)
+			err := changeWorkingDirectory(args[0])
 			if err != nil {
 				fmt.Printf("%s: %s: No such file or directory\n", command, args)
 			}
 
 		default:
-			cmd := exec.Command(command, args)
+			cmd := exec.Command(command, args[0])
 			cmd.Stderr = os.Stderr
 			cmd.Stdout = os.Stdout
 			err := cmd.Run()
@@ -107,4 +104,37 @@ func changeWorkingDirectory(path string) error {
 	}
 
 	return os.Chdir(path)
+}
+
+// parseCommand splits the input into tokens, respecting single quotes
+func parseCommand(input string) []string {
+	var tokens []string
+	var currentText strings.Builder
+	inQuotes := false
+
+	for i := 0; i < len(input); i++ {
+		char := input[i]
+
+		switch char {
+		case '\'':
+			inQuotes = !inQuotes
+		case ' ':
+			if !inQuotes {
+				if currentText.Len() > 0 {
+					tokens = append(tokens, currentText.String())
+					currentText.Reset()
+				}
+			} else {
+				currentText.WriteByte(char)
+			}
+		default:
+			currentText.WriteByte(char)
+		}
+	}
+
+	if currentText.Len() > 0 {
+		tokens = append(tokens, currentText.String())
+	}
+
+	return tokens
 }
