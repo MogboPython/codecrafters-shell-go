@@ -131,14 +131,26 @@ func parseCommand(input string) []string {
 				currentText.WriteByte(char)
 			}
 
-		case char == '\\' && inDoubleQuotes && i+1 < len(input):
-			// Handle escape sequences in double quotes
-			nextChar := input[i+1]
-			switch nextChar {
-			case '\\', '"':
-				currentText.WriteByte(nextChar)
-				i++ // Skip the next character
-			default:
+		case char == '\\' && !inSingleQuotes:
+			if i+1 < len(input) {
+				// Handle escaped character
+				nextChar := input[i+1]
+				if inDoubleQuotes {
+					// In double quotes, only escape \ and "
+					switch nextChar {
+					case '\\', '"':
+						currentText.WriteByte(nextChar)
+						i++ // Skip the next character
+					default:
+						currentText.WriteByte(char)
+					}
+				} else {
+					// Outside quotes, escape any character
+					currentText.WriteByte(nextChar)
+					i++
+				}
+			} else {
+				// Backslash at end of input
 				currentText.WriteByte(char)
 			}
 
