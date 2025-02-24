@@ -51,6 +51,14 @@ func main() {
 				fmt.Println(args + ": not found")
 			}
 
+		case "pwd":
+			wd, err := os.Getwd()
+			if err != nil {
+				fmt.Println("Error getting current working directory:", err)
+				return
+			}
+			fmt.Println(wd)
+
 		default:
 			cmd := exec.Command(command, args)
 			cmd.Stderr = os.Stderr
