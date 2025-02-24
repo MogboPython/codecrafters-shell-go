@@ -110,16 +110,40 @@ func changeWorkingDirectory(path string) error {
 func parseCommand(input string) []string {
 	var tokens []string
 	var currentText strings.Builder
-	inQuotes := false
+	var inSingleQuotes bool
+	var inDoubleQuotes bool
 
 	for i := 0; i < len(input); i++ {
 		char := input[i]
 
-		switch char {
-		case '\'':
-			inQuotes = !inQuotes
-		case ' ':
-			if !inQuotes {
+		switch {
+		case char == '\'':
+			if !inDoubleQuotes {
+				inSingleQuotes = !inSingleQuotes
+			} else {
+				currentText.WriteByte(char)
+			}
+
+		case char == '"':
+			if !inSingleQuotes {
+				inDoubleQuotes = !inDoubleQuotes
+			} else {
+				currentText.WriteByte(char)
+			}
+
+		case char == '\\' && inDoubleQuotes && i+1 < len(input):
+			// Handle escape sequences in double quotes
+			nextChar := input[i+1]
+			switch nextChar {
+			case '\\', '"':
+				currentText.WriteByte(nextChar)
+				i++ // Skip the next character
+			default:
+				currentText.WriteByte(char)
+			}
+
+		case char == ' ':
+			if !inSingleQuotes && !inDoubleQuotes {
 				if currentText.Len() > 0 {
 					tokens = append(tokens, currentText.String())
 					currentText.Reset()
@@ -127,6 +151,7 @@ func parseCommand(input string) []string {
 			} else {
 				currentText.WriteByte(char)
 			}
+
 		default:
 			currentText.WriteByte(char)
 		}
