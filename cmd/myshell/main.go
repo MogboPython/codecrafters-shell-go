@@ -30,6 +30,11 @@ func main() {
 			os.Exit(1)
 		}
 
+		// TODO: use this
+		// input = strings.Trim(input, "\r\n")
+		// args := strings.Split(input, " ")
+		// command, args := args[0], args[1:]
+
 		input = strings.TrimSpace(input)
 		parts := strings.SplitN(input, " ", 2)
 		command = parts[0]
