@@ -65,7 +65,7 @@ func main() {
 			}
 
 		default:
-			cmd := exec.Command(command, args[0])
+			cmd := exec.Command(command, args...)
 			cmd.Stderr = os.Stderr
 			cmd.Stdout = os.Stdout
 			err := cmd.Run()
