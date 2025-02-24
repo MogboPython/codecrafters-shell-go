@@ -17,6 +17,7 @@ func main() {
 	var shellCommands = map[string]bool{
 		"echo": true,
 		"exit": true,
+		"pwd":  true,
 		"type": true,
 	}
 
