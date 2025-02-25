@@ -125,11 +125,24 @@ func executeCommand(cmd Command) error {
 
 	default:
 		execCmd := exec.Command(cmd.name, cmd.args...)
-		return executeWithRedirection(cmd, func() error {
-			execCmd.Stderr = os.Stderr
+		execCmd.Stderr = os.Stderr
+
+		if cmd.outputFile != "" {
+			file, err := os.Create(cmd.outputFile)
+			if err != nil {
+				return fmt.Errorf("error creating output file: %v", err)
+			}
+			defer file.Close()
+			execCmd.Stdout = file
+		} else {
 			execCmd.Stdout = os.Stdout
-			return execCmd.Run()
-		})
+		}
+
+		err := execCmd.Run()
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 	return nil
 }
