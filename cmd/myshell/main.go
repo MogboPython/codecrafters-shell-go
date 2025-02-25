@@ -95,6 +95,16 @@ func parseCommand(input string) Command {
 
 func executeCommand(cmd Command) error {
 	switch cmd.name {
+	case "cd":
+		err := changeWorkingDirectory(cmd.args[0])
+		if err != nil {
+			fmt.Printf("%s: %s: No such file or directory\n", cmd.name, cmd.args[0])
+		}
+
+	case "pwd":
+		wd := getWorkingDirectory()
+		fmt.Println(wd)
+
 	case "exit":
 		os.Exit(0)
 
@@ -111,16 +121,6 @@ func executeCommand(cmd Command) error {
 			fmt.Println(cmd.args[0] + " is " + path)
 		} else {
 			fmt.Println(cmd.args[0] + ": not found")
-		}
-
-	case "pwd":
-		wd := getWorkingDirectory()
-		fmt.Println(wd)
-
-	case "cd":
-		err := changeWorkingDirectory(cmd.args[0])
-		if err != nil {
-			fmt.Printf("%s: %s: No such file or directory\n", cmd.name, cmd.args[0])
 		}
 
 	default:
@@ -143,6 +143,7 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 		}
 		defer file.Close()
 
+		// Save the original stdout
 		oldStdout := os.Stdout
 
 		// Replace stdout with the file
@@ -154,14 +155,12 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 		// Restore the original stdout
 		os.Stdout = oldStdout
 
-		if err != nil {
-			return fmt.Errorf("command execution error: %v", err)
-		}
-	} else {
-		// Execute normally without redirection
-		return execute()
+		return err
+
 	}
-	return nil
+
+	// Execute normally without redirection
+	return execute()
 }
 
 // splits the input into tokens
