@@ -39,7 +39,6 @@ func main() {
 		cmd := parseCommand(input)
 		if err := executeCommand(cmd); err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			continue
 		}
 	}
 }
@@ -126,11 +125,27 @@ func executeCommand(cmd Command) error {
 
 	default:
 		execCmd := exec.Command(cmd.name, cmd.args...)
-		return executeWithRedirection(cmd, func() error {
-			execCmd.Stderr = os.Stderr
-			execCmd.Stdout = os.Stdout
-			return execCmd.Run()
-		})
+		_, err := execCmd.Output()
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				fmt.Print(string(exitErr.Stderr))
+			} else {
+				fmt.Print("error:", err)
+			}
+		}
+		execCmd.Stderr = os.Stderr
+		execCmd.Stdout = os.Stdout
+		// err := cmd.Run()
+		// if err != nil {
+		// 	fmt.Printf("%s: command not found\n", cmd.name)
+		// }
+		// stdOutput = string(stdout)
+
+		// return executeWithRedirection(cmd, func() error {
+		// 	execCmd.Stderr = os.Stderr
+		// 	execCmd.Stdout = os.Stdout
+		// 	return execCmd.Run()
+		// })
 	}
 	return nil
 }
