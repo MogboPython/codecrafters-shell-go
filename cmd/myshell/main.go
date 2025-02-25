@@ -125,27 +125,11 @@ func executeCommand(cmd Command) error {
 
 	default:
 		execCmd := exec.Command(cmd.name, cmd.args...)
-		_, err := execCmd.Output()
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				fmt.Print(string(exitErr.Stderr))
-			} else {
-				fmt.Print("error:", err)
-			}
-		}
-		execCmd.Stderr = os.Stderr
-		execCmd.Stdout = os.Stdout
-		// err := cmd.Run()
-		// if err != nil {
-		// 	fmt.Printf("%s: command not found\n", cmd.name)
-		// }
-		// stdOutput = string(stdout)
-
-		// return executeWithRedirection(cmd, func() error {
-		// 	execCmd.Stderr = os.Stderr
-		// 	execCmd.Stdout = os.Stdout
-		// 	return execCmd.Run()
-		// })
+		return executeWithRedirection(cmd, func() error {
+			execCmd.Stderr = os.Stderr
+			execCmd.Stdout = os.Stdout
+			return execCmd.Run()
+		})
 	}
 	return nil
 }
@@ -171,10 +155,18 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 		// Restore the original stdout
 		os.Stdout = oldStdout
 
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return fmt.Errorf("%s", exitErr.Stderr)
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				fmt.Print(string(exitErr.Stderr))
+			} else {
+				fmt.Print("error:", err)
+			}
 		}
-		return err
+
+		// if exitErr, ok := err.(*exec.ExitError); ok {
+		// 	return fmt.Errorf("%s", exitErr.Stderr)
+		// }
+		return nil
 	}
 
 	// Execute normally without redirection
