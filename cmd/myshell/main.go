@@ -125,11 +125,14 @@ func executeCommand(cmd Command) error {
 
 	default:
 		execCmd := exec.Command(cmd.name, cmd.args...)
-		return executeWithRedirection(cmd, func() error {
+		err := executeWithRedirection(cmd, func() error {
 			execCmd.Stderr = os.Stderr
 			execCmd.Stdout = os.Stdout
 			return execCmd.Run()
 		})
+		if err != nil {
+			fmt.Printf("%s: command not found\n", cmd.name)
+		}
 	}
 	return nil
 }
@@ -159,22 +162,18 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				fmt.Print(string(exitErr.Stderr))
 			} else {
-				return err
+				fmt.Print("error:", err)
 			}
 		}
-
-		// if exitErr, ok := err.(*exec.ExitError); ok {
-		// 	return fmt.Errorf("%s", exitErr.Stderr)
-		// }
-		// return nil
+		return nil
 	}
 
 	// Execute normally without redirection
-	return execute()
-	// if exitErr, ok := err.(*exec.ExitError); ok {
-	// 	return fmt.Errorf("%s", exitErr.Stderr)
-	// }
-	// return err
+	err := execute()
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		return fmt.Errorf("%s", exitErr.Stderr)
+	}
+	return err
 }
 
 // splits the input into tokens
