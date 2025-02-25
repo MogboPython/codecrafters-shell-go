@@ -39,6 +39,7 @@ func main() {
 		cmd := parseCommand(input)
 		if err := executeCommand(cmd); err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			continue
 		}
 	}
 }
@@ -125,24 +126,11 @@ func executeCommand(cmd Command) error {
 
 	default:
 		execCmd := exec.Command(cmd.name, cmd.args...)
-		execCmd.Stderr = os.Stderr
-
-		if cmd.outputFile != "" {
-			file, err := os.Create(cmd.outputFile)
-			if err != nil {
-				return fmt.Errorf("error creating output file: %v", err)
-			}
-			defer file.Close()
-			execCmd.Stdout = file
-		} else {
+		return executeWithRedirection(cmd, func() error {
+			execCmd.Stderr = os.Stderr
 			execCmd.Stdout = os.Stdout
-		}
-
-		err := execCmd.Run()
-		if err != nil {
-			return err
-		}
-		return nil
+			return execCmd.Run()
+		})
 	}
 	return nil
 }
