@@ -8,19 +8,20 @@ import (
 	"strings"
 )
 
-// Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
-var _ = fmt.Fprint
+type Command struct {
+	name       string
+	args       []string
+	outputFile string
+}
+
+var shellCommands = map[string]bool{
+	"echo": true,
+	"exit": true,
+	"pwd":  true,
+	"type": true,
+}
 
 func main() {
-	var command string
-	var args []string
-	var shellCommands = map[string]bool{
-		"echo": true,
-		"exit": true,
-		"pwd":  true,
-		"type": true,
-	}
-
 	for {
 		fmt.Fprint(os.Stdout, "$ ")
 
@@ -31,47 +32,13 @@ func main() {
 		}
 
 		input = strings.TrimSpace(input)
-
-		parsed := parseCommand(input)
-		if len(parsed) == 0 {
+		if input == "" {
 			continue
 		}
 
-		command = parsed[0]
-		args = parsed[1:]
-
-		switch command {
-		case "exit":
-			os.Exit(0)
-		case "echo":
-			fmt.Println(strings.Join(args, " "))
-		case "type":
-			if shellCommands[args[0]] {
-				fmt.Println(args[0] + " is a shell builtin")
-			} else if path, err := exec.LookPath(args[0]); err == nil {
-				fmt.Println(args[0] + " is " + path)
-			} else {
-				fmt.Println(args[0] + ": not found")
-			}
-
-		case "pwd":
-			wd := getWorkingDirectory()
-			fmt.Println(wd)
-
-		case "cd":
-			err := changeWorkingDirectory(args[0])
-			if err != nil {
-				fmt.Printf("%s: %s: No such file or directory\n", command, args[0])
-			}
-
-		default:
-			cmd := exec.Command(command, args...)
-			cmd.Stderr = os.Stderr
-			cmd.Stdout = os.Stdout
-			err := cmd.Run()
-			if err != nil {
-				fmt.Printf("%s: command not found\n", command)
-			}
+		cmd := parseCommand(input)
+		if err := executeCommand(cmd); err != nil {
+			fmt.Fprintln(os.Stderr, err)
 		}
 	}
 }
@@ -106,8 +73,99 @@ func changeWorkingDirectory(path string) error {
 	return os.Chdir(path)
 }
 
-// parseCommand splits the input into tokens, respecting single quotes
-func parseCommand(input string) []string {
+func parseCommand(input string) Command {
+	tokens := tokenize(input)
+	cmd := Command{}
+
+	// Process tokens looking for redirection
+	for i := 0; i < len(tokens); i++ {
+		if (tokens[i] == ">" || tokens[i] == "1>") && i+1 < len(tokens) {
+			cmd.outputFile = tokens[i+1]
+			// Skip the next token
+			i++
+		} else if cmd.name == "" {
+			cmd.name = tokens[i]
+		} else {
+			cmd.args = append(cmd.args, tokens[i])
+		}
+	}
+
+	return cmd
+}
+
+func executeCommand(cmd Command) error {
+	switch cmd.name {
+	case "exit":
+		os.Exit(0)
+
+	case "echo":
+		return executeWithRedirection(cmd, func() error {
+			fmt.Println(strings.Join(cmd.args, " "))
+			return nil
+		})
+
+	case "type":
+		if shellCommands[cmd.args[0]] {
+			fmt.Println(cmd.args[0] + " is a shell builtin")
+		} else if path, err := exec.LookPath(cmd.args[0]); err == nil {
+			fmt.Println(cmd.args[0] + " is " + path)
+		} else {
+			fmt.Println(cmd.args[0] + ": not found")
+		}
+
+	case "pwd":
+		wd := getWorkingDirectory()
+		fmt.Println(wd)
+
+	case "cd":
+		err := changeWorkingDirectory(cmd.args[0])
+		if err != nil {
+			fmt.Printf("%s: %s: No such file or directory\n", cmd.name, cmd.args[0])
+		}
+
+	default:
+		execCmd := exec.Command(cmd.name, cmd.args...)
+		return executeWithRedirection(cmd, func() error {
+			execCmd.Stderr = os.Stderr
+			execCmd.Stdout = os.Stdout
+			return execCmd.Run()
+		})
+	}
+	return nil
+}
+
+func executeWithRedirection(cmd Command, execute func() error) error {
+	if cmd.outputFile != "" {
+		// Open the output file
+		file, err := os.Create(cmd.outputFile)
+		if err != nil {
+			return fmt.Errorf("error creating output file: %v", err)
+		}
+		defer file.Close()
+
+		oldStdout := os.Stdout
+
+		// Replace stdout with the file
+		os.Stdout = file
+
+		// Execute the command
+		err = execute()
+
+		// Restore the original stdout
+		os.Stdout = oldStdout
+
+		if err != nil {
+			return fmt.Errorf("command execution error: %v", err)
+		}
+	} else {
+		// Execute normally without redirection
+		return execute()
+	}
+	return nil
+}
+
+// splits the input into tokens
+func tokenize(input string) []string {
 	var tokens []string
 	var currentText strings.Builder
 	var inSingleQuotes bool

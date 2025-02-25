@@ -1,0 +1,100 @@
+type Command struct {
+	name       string
+	args       []string
+	outputFile string
+}
+
+func parseCommand(input string) Command {
+	tokens := tokenize(input) // Using our existing tokenize logic
+	cmd := Command{}
+
+	//  echo 'Hello James' 1> /tmp/foo/foo.md
+	// Process tokens looking for redirection
+	for i := 0; i < len(tokens); i++ {
+		if tokens[i] == "1>" && i+1 < len(tokens) {
+			cmd.outputFile = tokens[i+1]
+			// Skip the next token since we used it as filename
+			i++
+		} else if cmd.name == "" {
+			cmd.name = tokens[i]
+		} else {
+			cmd.args = append(cmd.args, tokens[i])
+		}
+	}
+
+	return cmd
+}
+
+func executeCommand(cmd Command) error {
+	switch cmd.name {
+	case "exit":
+		os.Exit(0)
+	case "echo":
+		return executeWithRedirection(cmd, func() error {
+			fmt.Println(strings.Join(cmd.args, " "))
+			return nil
+		})
+	// ... other built-in commands ...
+	default:
+		execCmd := exec.Command(cmd.name, cmd.args...)
+		return executeWithRedirection(cmd, func() error {
+			execCmd.Stderr = os.Stderr
+			execCmd.Stdout = os.Stdout
+			return execCmd.Run()
+		})
+	}
+	return nil
+}
+
+func executeWithRedirection(cmd Command, execute func() error) error {
+	if cmd.outputFile != "" {
+		// Open the output file
+		file, err := os.Create(cmd.outputFile)
+		if err != nil {
+			return fmt.Errorf("error creating output file: %v", err)
+		}
+		defer file.Close()
+
+		// Save the original stdout
+		oldStdout := os.Stdout
+
+		// Replace stdout with our file
+		os.Stdout = file
+
+		// Execute the command
+		err = execute()
+
+		// Restore the original stdout
+		os.Stdout = oldStdout
+
+		if err != nil {
+			return fmt.Errorf("command execution error: %v", err)
+		}
+	} else {
+		// Execute normally without redirection
+		return execute()
+	}
+	return nil
+}
+
+func main() {
+	for {
+		fmt.Fprint(os.Stdout, "$ ")
+
+		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			fmt.Println("An error occurred: ", err)
+			os.Exit(1)
+		}
+
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
+
+		cmd := parseCommand(input)
+		if err := executeCommand(cmd); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}
+}
