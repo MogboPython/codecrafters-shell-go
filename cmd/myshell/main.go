@@ -155,12 +155,18 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 		// Restore the original stdout
 		os.Stdout = oldStdout
 
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("%s", exitErr.Stderr)
+		}
 		return err
-
 	}
 
 	// Execute normally without redirection
-	return execute()
+	err := execute()
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		return fmt.Errorf("%s", exitErr.Stderr)
+	}
+	return err
 }
 
 // splits the input into tokens
