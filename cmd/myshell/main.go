@@ -159,22 +159,22 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				fmt.Print(string(exitErr.Stderr))
 			} else {
-				fmt.Print("error:", err)
+				return err
 			}
 		}
 
 		// if exitErr, ok := err.(*exec.ExitError); ok {
 		// 	return fmt.Errorf("%s", exitErr.Stderr)
 		// }
-		return nil
+		// return nil
 	}
 
 	// Execute normally without redirection
-	err := execute()
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		return fmt.Errorf("%s", exitErr.Stderr)
-	}
-	return err
+	return execute()
+	// if exitErr, ok := err.(*exec.ExitError); ok {
+	// 	return fmt.Errorf("%s", exitErr.Stderr)
+	// }
+	// return err
 }
 
 // splits the input into tokens
