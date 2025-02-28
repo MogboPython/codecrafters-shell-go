@@ -261,7 +261,6 @@ func executeExternalCommand(cmd Command) error {
 		if _, ok := err.(*exec.Error); ok {
 			return fmt.Errorf("%s: command not found", cmd.name)
 		}
-		return err
 	}
 
 	return nil
