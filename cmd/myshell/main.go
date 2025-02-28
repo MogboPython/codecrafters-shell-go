@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -128,17 +129,49 @@ func executeCommand(cmd Command) error {
 		}
 
 	default:
+		output := os.Stdout
+		errout := os.Stderr
+
 		execCmd := exec.Command(cmd.name, cmd.args...)
-		err := executeWithRedirection(cmd, func() error {
-			execCmd.Stderr = os.Stderr
-			execCmd.Stdout = os.Stdout
-			return execCmd.Run()
-		})
-		if err != nil {
-			fmt.Printf("%s: command not found\n", cmd.name)
+		if cmd.outputFile != "" {
+			output = createOutputfile(cmd.outputFile)
+		} else if cmd.errorFile != "" {
+			errout = createOutputfile(cmd.errorFile)
 		}
+		// execCmd.Run()
+		// err := executeWithRedirection(cmd, func() error {
+		// 	execCmd.Stderr = os.Stderr
+		// 	execCmd.Stdout = os.Stdout
+		// 	return execCmd.Run()
+		// })
+		execCmd.Stderr = errout
+		execCmd.Stdout = output
+		if err := execCmd.Run(); err != nil {
+			if _, ok := err.(*exec.Error); ok {
+				fmt.Printf("%s: command not found\n", cmd.name)
+			}
+		}
+
+		// if execCmd.Run() != nil {
+		// 	fmt.Printf("%s: command not found\n", cmd.name)
+		// }
 	}
 	return nil
+}
+
+func createOutputfile(fileName string) *os.File {
+	outFile, err := os.OpenFile(fileName, os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		if os.IsNotExist(err) {
+			outFile, err = os.Create(fileName)
+			if err != nil {
+				log.Println(err)
+			}
+		} else {
+			log.Fatal(err)
+		}
+	}
+	return outFile
 }
 
 func executeWithRedirection(cmd Command, execute func() error) error {
@@ -184,8 +217,14 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	// }
 	// return nil
 
-	if err != nil && cmd.errorFile == "" {
-		return err
+	if err != nil { //&& cmd.errorFile == ""
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			fmt.Print(string(exitErr.Stderr))
+		} else if cmd.errorFile != "" {
+			return nil
+		} else {
+			return err
+		}
 	}
 	// fmt.Print("error:", err)
 	// return fmt.Errorf("execution error: %w", err)
@@ -198,6 +237,7 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	// 			// fmt.Fprintf(oldStderr, "%s", string(exitErr.Stderr))
 	// 		}
 	// 	}
+	// }
 	// 	// fmt.Print("error:", err)
 	// 	return fmt.Errorf("execution error: %w", err)
 	// }
