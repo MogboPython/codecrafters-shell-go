@@ -78,19 +78,18 @@ func parseCommand(input string) Command {
 	tokens := tokenize(input)
 	cmd := Command{}
 
-	// TODO: change to switch case
 	// Process tokens looking for redirection
 	for i := 0; i < len(tokens); i++ {
-		if (tokens[i] == ">" || tokens[i] == "1>") && i+1 < len(tokens) {
+		switch {
+		case (tokens[i] == ">" || tokens[i] == "1>") && i+1 < len(tokens):
 			cmd.outputFile = tokens[i+1]
-			// Skip the next token
-			i++
-		} else if tokens[i] == "2>" && i+1 < len(tokens) {
+			i++ // Skip the filename token
+		case tokens[i] == "2>" && i+1 < len(tokens):
 			cmd.errorFile = tokens[i+1]
-			i++
-		} else if cmd.name == "" {
+			i++ // Skip the filename token
+		case cmd.name == "":
 			cmd.name = tokens[i]
-		} else {
+		default:
 			cmd.args = append(cmd.args, tokens[i])
 		}
 	}
@@ -173,7 +172,7 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	}
 
 	// Execute the command
-	err := execute()
+	_ = execute()
 
 	// Handle execution error
 	// if err != nil {
@@ -196,7 +195,7 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	// 	return fmt.Errorf("execution error: %w", err)
 	// }
 
-	return err
+	return nil
 }
 
 // splits the input into tokens
