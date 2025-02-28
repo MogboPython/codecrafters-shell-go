@@ -184,8 +184,8 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	// }
 	// return nil
 
-	if err != nil && cmd.errorFile != "" {
-		return nil
+	if err != nil && cmd.errorFile == "" {
+		return err
 	}
 	// fmt.Print("error:", err)
 	// return fmt.Errorf("execution error: %w", err)
