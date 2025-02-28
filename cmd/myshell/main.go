@@ -96,6 +96,10 @@ func parseCommand(input string) Command {
 			cmd.outputFile = tokens[i+1]
 			cmd.appendOutput = true
 			i++
+		case tokens[i] == "2>>" && i+1 < len(tokens):
+			cmd.errorFile = tokens[i+1]
+			cmd.appendOutput = true
+			i++
 		case cmd.name == "":
 			cmd.name = tokens[i]
 		default:
@@ -301,22 +305,3 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	// Execute the command
 	return execute()
 }
-
-// func executeWithRedirection(cmd Command, execute func() error) error {
-// 	if cmd.outputFile != "" {
-// 		file := createOutputfile(cmd.outputFile, cmd.appendOutput)
-// 		defer file.Close()
-
-// 		oldStdout := os.Stdout
-// 		os.Stdout = file
-
-// 		err := execute()
-// 		os.Stdout = oldStdout
-// 		if err != nil {
-// 			return fmt.Errorf("command execution error: %v", err)
-// 		}
-// 	} else {
-// 		return execute()
-// 	}
-// 	return nil
-// }
