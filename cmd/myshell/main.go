@@ -188,7 +188,7 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 		return nil
 	}
 	// fmt.Print("error:", err)
-	return fmt.Errorf("execution error: %w", err)
+	// return fmt.Errorf("execution error: %w", err)
 
 	// if err != nil {
 	// 	if exitErr, ok := err.(*exec.ExitError); ok {
@@ -202,7 +202,7 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	// 	return fmt.Errorf("execution error: %w", err)
 	// }
 
-	// return nil
+	return nil
 }
 
 // splits the input into tokens
