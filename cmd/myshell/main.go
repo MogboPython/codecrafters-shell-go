@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -10,10 +11,11 @@ import (
 )
 
 type Command struct {
-	name       string
-	args       []string
-	outputFile string
-	errorFile  string
+	name         string
+	args         []string
+	outputFile   string
+	appendOutput bool
+	errorFile    string
 }
 
 var shellCommands = map[string]bool{
@@ -84,10 +86,16 @@ func parseCommand(input string) Command {
 		switch {
 		case (tokens[i] == ">" || tokens[i] == "1>") && i+1 < len(tokens):
 			cmd.outputFile = tokens[i+1]
+			cmd.appendOutput = false
 			i++ // Skip the filename token
 		case tokens[i] == "2>" && i+1 < len(tokens):
 			cmd.errorFile = tokens[i+1]
-			i++ // Skip the filename token
+			cmd.appendOutput = false
+			i++
+		case (tokens[i] == ">>" || tokens[i] == "1>>") && i+1 < len(tokens):
+			cmd.outputFile = tokens[i+1]
+			cmd.appendOutput = true
+			i++
 		case cmd.name == "":
 			cmd.name = tokens[i]
 		default:
@@ -129,120 +137,24 @@ func executeCommand(cmd Command) error {
 		}
 
 	default:
-		output := os.Stdout
-		errout := os.Stderr
-
-		execCmd := exec.Command(cmd.name, cmd.args...)
-		if cmd.outputFile != "" {
-			output = createOutputfile(cmd.outputFile)
-		} else if cmd.errorFile != "" {
-			errout = createOutputfile(cmd.errorFile)
-		}
-		// execCmd.Run()
-		// err := executeWithRedirection(cmd, func() error {
-		// 	execCmd.Stderr = os.Stderr
-		// 	execCmd.Stdout = os.Stdout
-		// 	return execCmd.Run()
-		// })
-		execCmd.Stderr = errout
-		execCmd.Stdout = output
-		if err := execCmd.Run(); err != nil {
-			if _, ok := err.(*exec.Error); ok {
-				fmt.Printf("%s: command not found\n", cmd.name)
-			}
-		}
-
-		// if execCmd.Run() != nil {
-		// 	fmt.Printf("%s: command not found\n", cmd.name)
-		// }
+		return executeExternalCommand(cmd)
 	}
 	return nil
 }
 
-func createOutputfile(fileName string) *os.File {
-	outFile, err := os.OpenFile(fileName, os.O_RDWR|os.O_APPEND, 0644)
+func createOutputfile(fileName string, appendFlag bool) *os.File {
+	flag := os.O_WRONLY | os.O_CREATE
+	if appendFlag {
+		flag |= os.O_APPEND
+	} else {
+		flag |= os.O_TRUNC
+	}
+
+	outFile, err := os.OpenFile(fileName, flag, 0644)
 	if err != nil {
-		if os.IsNotExist(err) {
-			outFile, err = os.Create(fileName)
-			if err != nil {
-				log.Println(err)
-			}
-		} else {
-			log.Fatal(err)
-		}
+		log.Fatal(err)
 	}
 	return outFile
-}
-
-func executeWithRedirection(cmd Command, execute func() error) error {
-	// Save original stdout and stderr
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-
-	cleanup := func() {
-		os.Stdout = oldStdout
-		os.Stderr = oldStderr
-	}
-	defer cleanup()
-
-	if cmd.outputFile != "" {
-		file, err := os.Create(cmd.outputFile)
-		if err != nil {
-			return fmt.Errorf("error creating output file %s: %w", cmd.outputFile, err)
-		}
-		defer file.Close()
-		os.Stdout = file
-	}
-
-	if cmd.errorFile != "" {
-		errFile, err := os.Create(cmd.errorFile)
-		if err != nil {
-			// os.Stdout = oldStdout
-			return fmt.Errorf("error creating error file %s: %w", cmd.errorFile, err)
-		}
-		defer errFile.Close()
-		os.Stderr = errFile
-	}
-
-	// Execute the command
-	err := execute()
-
-	// Handle execution error
-	// if err != nil {
-	// 	if exitErr, ok := err.(*exec.ExitError); ok {
-	// 		fmt.Print(string(exitErr.Stderr))
-	// 	} else {
-	// 		fmt.Print("error:", err)
-	// 	}
-	// }
-	// return nil
-
-	if err != nil { //&& cmd.errorFile == ""
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			fmt.Print(string(exitErr.Stderr))
-		} else if cmd.errorFile != "" {
-			return nil
-		} else {
-			return err
-		}
-	}
-	// fmt.Print("error:", err)
-	// return fmt.Errorf("execution error: %w", err)
-
-	// if err != nil {
-	// 	if exitErr, ok := err.(*exec.ExitError); ok {
-	// 		// Only print stderr if we're not already redirecting it
-	// 		if cmd.errorFile != "" {
-	// 			return nil
-	// 			// fmt.Fprintf(oldStderr, "%s", string(exitErr.Stderr))
-	// 		}
-	// 	}
-	// }
-	// 	// fmt.Print("error:", err)
-	// 	return fmt.Errorf("execution error: %w", err)
-	// }
-
-	return nil
 }
 
 // splits the input into tokens
@@ -314,3 +226,98 @@ func tokenize(input string) []string {
 
 	return tokens
 }
+
+func executeExternalCommand(cmd Command) error {
+	execCmd := exec.Command(cmd.name, cmd.args...)
+
+	var stdout, stderr io.Writer = os.Stdout, os.Stderr
+	var outFile, errFile *os.File
+	var err error
+
+	// Set up output redirection
+	if cmd.outputFile != "" {
+		outFile = createOutputfile(cmd.outputFile, cmd.appendOutput)
+		if outFile != nil {
+			defer outFile.Close()
+			stdout = outFile
+		}
+	}
+
+	// Set up error redirection
+	if cmd.errorFile != "" {
+		errFile = createOutputfile(cmd.errorFile, cmd.appendOutput)
+		if errFile != nil {
+			defer errFile.Close()
+			stderr = errFile
+		}
+	}
+
+	execCmd.Stdout = stdout
+	execCmd.Stderr = stderr
+
+	// Run the command
+	err = execCmd.Run()
+	if err != nil {
+		if _, ok := err.(*exec.Error); ok {
+			return fmt.Errorf("%s: command not found", cmd.name)
+		}
+		return err
+	}
+
+	return nil
+}
+
+func executeWithRedirection(cmd Command, execute func() error) error {
+	// Save original stdout and stderr
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	cleanup := func() {
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+	}
+
+	defer cleanup()
+
+	// Handle stdout redirection
+	if cmd.outputFile != "" {
+		file := createOutputfile(cmd.outputFile, cmd.appendOutput)
+		if file == nil {
+			return fmt.Errorf("failed to redirect output to %s", cmd.outputFile)
+		}
+		defer file.Close()
+		os.Stdout = file
+	}
+
+	// Handle stderr redirection
+	if cmd.errorFile != "" {
+		errFile := createOutputfile(cmd.errorFile, cmd.appendOutput)
+		if errFile == nil {
+			return fmt.Errorf("failed to redirect error to %s", cmd.errorFile)
+		}
+		defer errFile.Close()
+		os.Stderr = errFile
+	}
+
+	// Execute the command
+	return execute()
+}
+
+// func executeWithRedirection(cmd Command, execute func() error) error {
+// 	if cmd.outputFile != "" {
+// 		file := createOutputfile(cmd.outputFile, cmd.appendOutput)
+// 		defer file.Close()
+
+// 		oldStdout := os.Stdout
+// 		os.Stdout = file
+
+// 		err := execute()
+// 		os.Stdout = oldStdout
+// 		if err != nil {
+// 			return fmt.Errorf("command execution error: %v", err)
+// 		}
+// 	} else {
+// 		return execute()
+// 	}
+// 	return nil
+// }
