@@ -12,6 +12,7 @@ type Command struct {
 	name       string
 	args       []string
 	outputFile string
+	errorFile  string
 }
 
 var shellCommands = map[string]bool{
@@ -77,11 +78,15 @@ func parseCommand(input string) Command {
 	tokens := tokenize(input)
 	cmd := Command{}
 
+	// TODO: change to switch case
 	// Process tokens looking for redirection
 	for i := 0; i < len(tokens); i++ {
 		if (tokens[i] == ">" || tokens[i] == "1>") && i+1 < len(tokens) {
 			cmd.outputFile = tokens[i+1]
 			// Skip the next token
+			i++
+		} else if tokens[i] == "2>" && i+1 < len(tokens) {
+			cmd.errorFile = tokens[i+1]
 			i++
 		} else if cmd.name == "" {
 			cmd.name = tokens[i]
@@ -138,42 +143,51 @@ func executeCommand(cmd Command) error {
 }
 
 func executeWithRedirection(cmd Command, execute func() error) error {
+	// Save original stdout and stderr
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	cleanup := func() {
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+	}
+	defer cleanup()
+
 	if cmd.outputFile != "" {
-		// Open the output file
 		file, err := os.Create(cmd.outputFile)
 		if err != nil {
-			return fmt.Errorf("error creating output file: %v", err)
+			return fmt.Errorf("error creating output file %s: %w", cmd.outputFile, err)
 		}
 		defer file.Close()
-
-		// Save the original stdout
-		oldStdout := os.Stdout
-
-		// Replace stdout with the file
 		os.Stdout = file
+	}
 
-		// Execute the command
-		err = execute()
-
-		// Restore the original stdout
-		os.Stdout = oldStdout
-
+	if cmd.errorFile != "" {
+		errFile, err := os.Create(cmd.errorFile)
 		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				fmt.Print(string(exitErr.Stderr))
-			} else {
-				fmt.Print("error:", err)
-			}
+			// os.Stdout = oldStdout
+			return fmt.Errorf("error creating error file %s: %w", cmd.errorFile, err)
 		}
-		return nil
+		defer errFile.Close()
+		os.Stderr = errFile
 	}
 
-	// Execute normally without redirection
+	// Execute the command
 	err := execute()
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		return fmt.Errorf("%s", exitErr.Stderr)
+
+	// Handle execution error
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// Only print stderr if we're not already redirecting it
+			if cmd.errorFile == "" {
+				fmt.Fprintf(oldStderr, "%s", string(exitErr.Stderr))
+			}
+			return exitErr
+		}
+		return fmt.Errorf("execution error: %w", err)
 	}
-	return err
+
+	return nil
 }
 
 // splits the input into tokens
