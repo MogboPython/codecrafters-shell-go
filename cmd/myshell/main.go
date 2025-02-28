@@ -172,7 +172,7 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	}
 
 	// Execute the command
-	_ = execute()
+	err := execute()
 
 	// Handle execution error
 	// if err != nil {
@@ -184,18 +184,25 @@ func executeWithRedirection(cmd Command, execute func() error) error {
 	// }
 	// return nil
 
+	if err != nil && cmd.errorFile != "" {
+		return nil
+	}
+	// fmt.Print("error:", err)
+	return fmt.Errorf("execution error: %w", err)
+
 	// if err != nil {
 	// 	if exitErr, ok := err.(*exec.ExitError); ok {
 	// 		// Only print stderr if we're not already redirecting it
-	// 		if cmd.errorFile == "" {
-	// 			fmt.Fprintf(oldStderr, "%s", string(exitErr.Stderr))
+	// 		if cmd.errorFile != "" {
+	// 			return nil
+	// 			// fmt.Fprintf(oldStderr, "%s", string(exitErr.Stderr))
 	// 		}
-	// 		return exitErr
 	// 	}
+	// 	// fmt.Print("error:", err)
 	// 	return fmt.Errorf("execution error: %w", err)
 	// }
 
-	return nil
+	// return nil
 }
 
 // splits the input into tokens
