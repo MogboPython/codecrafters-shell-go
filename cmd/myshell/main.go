@@ -7,10 +7,14 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/term"
 )
+
+// Cache of executables in PATH to avoid repeated filesystem lookups
+var executableCache map[string]bool
 
 type Command struct {
 	name         string
@@ -25,6 +29,52 @@ var shellCommands = map[string]bool{
 	"exit": true,
 	"pwd":  true,
 	"type": true,
+}
+
+func init() {
+	// Initialize the cache
+	executableCache = findExecutablesInPath()
+}
+
+func findExecutablesInPath() map[string]bool {
+	result := make(map[string]bool)
+
+	// Get PATH environment variable
+	pathEnv := os.Getenv("PATH")
+	paths := strings.Split(pathEnv, ":")
+
+	// Add built-in commands first
+	for cmd := range shellCommands {
+		result[cmd] = true
+	}
+
+	// Look for executables in each PATH directory
+	for _, path := range paths {
+		files, err := os.ReadDir(path)
+		if err != nil {
+			continue // Skip directories we can't read
+		}
+
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+
+			// Get full path to check if executable
+			fullPath := filepath.Join(path, file.Name())
+			info, err := os.Stat(fullPath)
+			if err != nil {
+				continue
+			}
+
+			// Check if file is executable
+			if info.Mode()&0111 != 0 {
+				result[file.Name()] = true
+			}
+		}
+	}
+
+	return result
 }
 
 func main() {
@@ -87,7 +137,7 @@ func autocomplete(prefix string) (suffix string) {
 		return
 	}
 	suffixes := []string{}
-	for cmd := range shellCommands {
+	for cmd := range executableCache {
 		after, found := strings.CutPrefix(cmd, prefix)
 		if found {
 			suffixes = append(suffixes, after)
