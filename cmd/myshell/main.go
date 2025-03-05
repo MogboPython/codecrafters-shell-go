@@ -132,11 +132,11 @@ func readInput(rd io.Reader) (input string) {
 				if tabPresses == 1 {
 					fmt.Fprint(os.Stdout, "\a")
 				} else {
-					// term.Restore(fd, oldState)
-					fmt.Fprintf(os.Stdout, "\n%s\n", match)
+					term.Restore(fd, oldState)
+					fmt.Fprintf(os.Stdout, "\r\n%s\r\n", match)
 					fmt.Fprint(os.Stdout, "$ "+input)
-					// term.MakeRaw(fd)
-					// fmt.Fprint(os.Stdout, string(input))
+					newState, _ := term.MakeRaw(fd)
+					oldState = newState
 					tabPresses = 0
 				}
 			}
@@ -144,6 +144,7 @@ func readInput(rd io.Reader) (input string) {
 		default:
 			input += string(c)
 			fmt.Fprint(os.Stdout, string(c))
+			tabPresses = 0
 		}
 	}
 }
