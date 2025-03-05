@@ -115,25 +115,28 @@ func readInput(rd io.Reader) (input string) {
 				input = input[:length-1]
 				fmt.Fprint(os.Stdout, "\b \b")
 			}
+			tabPresses = 0
 
 		case '\t': // Tab
 			tabPresses++
-			match, matchStatus := autocomplete(input)
-			switch matchStatus {
+			match, AutoCompleteResult := autocomplete(input)
+			switch AutoCompleteResult {
 			case AUTOCOMPLETE_DIRECT_MATCH:
 				input += match + " "
 				fmt.Fprint(os.Stdout, match+" ")
+				tabPresses = 0
 			case AUTOCOMPLETE_NO_MATCH:
 				fmt.Fprint(os.Stdout, "\a")
+				tabPresses = 0
 			case AUTOCOMPLETE_MULTI_MATCH:
 				if tabPresses == 1 {
 					fmt.Fprint(os.Stdout, "\a")
 				} else {
-					term.Restore(fd, oldState)
+					// term.Restore(fd, oldState)
 					fmt.Fprintf(os.Stdout, "\n%s\n", match)
-					fmt.Fprint(os.Stdout, "$ ")
-					term.MakeRaw(fd)
-					fmt.Fprint(os.Stdout, string(input))
+					fmt.Fprint(os.Stdout, "$ "+input)
+					// term.MakeRaw(fd)
+					// fmt.Fprint(os.Stdout, string(input))
 					tabPresses = 0
 				}
 			}
@@ -145,7 +148,8 @@ func readInput(rd io.Reader) (input string) {
 	}
 }
 
-func autocomplete(prefix string) (string, int) {
+// TODO: better way of doing this
+func autocomplete(prefix string) (string, AutoCompleteResult) {
 	if prefix == "" {
 		return "", AUTOCOMPLETE_NO_MATCH
 	}
@@ -155,6 +159,10 @@ func autocomplete(prefix string) (string, int) {
 		if found {
 			suffixes = append(suffixes, after)
 		}
+	}
+
+	if len(suffixes) == 0 {
+		return "", AUTOCOMPLETE_NO_MATCH
 	}
 
 	if len(suffixes) == 1 {
@@ -167,6 +175,17 @@ func autocomplete(prefix string) (string, int) {
 	}
 
 	sort.Strings(matches)
+	first, last := matches[0], matches[len(matches)-1]
+	i := len(prefix)
+	for i < len(first) && i < len(last) && first[i] == last[i] {
+		i++
+	}
+
+	commonPrefix := first[:i]
+	if len(commonPrefix) > len(prefix) {
+		// We can extend the current prefix
+		return commonPrefix[len(prefix):], AUTOCOMPLETE_DIRECT_MATCH
+	}
 	return strings.Join(matches, "  "), AUTOCOMPLETE_MULTI_MATCH
 }
 
