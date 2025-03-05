@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"sort"
 	"strings"
 
 	"golang.org/x/term"
@@ -31,6 +31,15 @@ var shellCommands = map[string]bool{
 	"type": true,
 }
 
+type AutoCompleteResult int
+
+const (
+	AUTOCOMPLETE_ERROR = iota
+	AUTOCOMPLETE_DIRECT_MATCH
+	AUTOCOMPLETE_MULTI_MATCH
+	AUTOCOMPLETE_NO_MATCH
+)
+
 func init() {
 	// Initialize the cache
 	executableCache = findExecutablesInPath()
@@ -43,32 +52,17 @@ func findExecutablesInPath() map[string]bool {
 	pathEnv := os.Getenv("PATH")
 	paths := strings.Split(pathEnv, ":")
 
-	// Add built-in commands first
 	for cmd := range shellCommands {
 		result[cmd] = true
 	}
 
-	// Look for executables in each PATH directory
 	for _, path := range paths {
 		files, err := os.ReadDir(path)
-		if err != nil {
-			continue // Skip directories we can't read
-		}
-
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-
-			// Get full path to check if executable
-			fullPath := filepath.Join(path, file.Name())
-			info, err := os.Stat(fullPath)
-			if err != nil {
-				continue
-			}
-
-			// Check if file is executable
-			if info.Mode()&0111 != 0 {
+		if err == nil {
+			for _, file := range files {
+				if file.IsDir() {
+					continue
+				}
 				result[file.Name()] = true
 			}
 		}
@@ -98,7 +92,9 @@ func readInput(rd io.Reader) (input string) {
 		panic(err)
 	}
 	defer term.Restore(fd, oldState)
+
 	r := bufio.NewReader(rd)
+	tabPresses := 0
 
 	for {
 		c, _, err := r.ReadRune()
@@ -109,22 +105,39 @@ func readInput(rd io.Reader) (input string) {
 		switch c {
 		case '\x03': // Ctrl+C
 			os.Exit(0)
+
 		case '\r', '\n': // Enter
 			fmt.Fprint(os.Stdout, "\r\n")
 			return input
+
 		case '\x7F': // Backspace
 			if length := len(input); length > 0 {
 				input = input[:length-1]
 				fmt.Fprint(os.Stdout, "\b \b")
 			}
+
 		case '\t': // Tab
-			suffix := autocomplete(input)
-			if suffix != "" {
-				input += suffix + " "
-				fmt.Fprint(os.Stdout, suffix+" ")
-			} else {
+			tabPresses++
+			match, matchStatus := autocomplete(input)
+			switch matchStatus {
+			case AUTOCOMPLETE_DIRECT_MATCH:
+				input += match + " "
+				fmt.Fprint(os.Stdout, match+" ")
+			case AUTOCOMPLETE_NO_MATCH:
 				fmt.Fprint(os.Stdout, "\a")
+			case AUTOCOMPLETE_MULTI_MATCH:
+				if tabPresses == 1 {
+					fmt.Fprint(os.Stdout, "\a")
+				} else {
+					term.Restore(fd, oldState)
+					fmt.Fprintf(os.Stdout, "\n%s\n", match)
+					fmt.Fprint(os.Stdout, "$ ")
+					term.MakeRaw(fd)
+					fmt.Fprint(os.Stdout, string(input))
+					tabPresses = 0
+				}
 			}
+
 		default:
 			input += string(c)
 			fmt.Fprint(os.Stdout, string(c))
@@ -132,9 +145,9 @@ func readInput(rd io.Reader) (input string) {
 	}
 }
 
-func autocomplete(prefix string) (suffix string) {
+func autocomplete(prefix string) (string, int) {
 	if prefix == "" {
-		return
+		return "", AUTOCOMPLETE_NO_MATCH
 	}
 	suffixes := []string{}
 	for cmd := range executableCache {
@@ -143,10 +156,18 @@ func autocomplete(prefix string) (suffix string) {
 			suffixes = append(suffixes, after)
 		}
 	}
+
 	if len(suffixes) == 1 {
-		return suffixes[0]
+		return suffixes[0], AUTOCOMPLETE_DIRECT_MATCH
 	}
-	return
+
+	matches := make([]string, 0, len(suffixes))
+	for _, suffix := range suffixes {
+		matches = append(matches, prefix+suffix)
+	}
+
+	sort.Strings(matches)
+	return strings.Join(matches, "  "), AUTOCOMPLETE_MULTI_MATCH
 }
 
 func getWorkingDirectory() string {
