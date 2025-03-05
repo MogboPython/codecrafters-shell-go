@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 type Command struct {
@@ -27,24 +29,71 @@ var shellCommands = map[string]bool{
 
 func main() {
 	for {
-		fmt.Fprint(os.Stdout, "$ ")
+		fmt.Fprint(os.Stdout, "\r$ ")
 
-		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil {
-			fmt.Println("An error occured: ", err)
-			os.Exit(1)
-		}
-
+		input := readInput(os.Stdin)
 		input = strings.TrimSpace(input)
-		if input == "" {
-			continue
-		}
 
 		cmd := parseCommand(input)
 		if err := executeCommand(cmd); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 	}
+}
+
+func readInput(rd io.Reader) (input string) {
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		panic(err)
+	}
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	r := bufio.NewReader(rd)
+
+	for {
+		c, _, err := r.ReadRune()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		switch c {
+		case '\x03': // Ctrl+C
+			os.Exit(0)
+		case '\r', '\n': // Enter
+			fmt.Fprint(os.Stdout, "\r\n")
+			return input
+		case '\x7F': // Backspace
+			if length := len(input); length > 0 {
+				input = input[:length-1]
+				fmt.Fprint(os.Stdout, "\b \b")
+			}
+		case '\t': // Tab
+			suffix := autocomplete(input)
+			if suffix != "" {
+				input += suffix + " "
+				fmt.Fprint(os.Stdout, suffix+" ")
+			}
+		default:
+			input += string(c)
+			fmt.Fprint(os.Stdout, string(c))
+		}
+	}
+}
+
+func autocomplete(prefix string) (suffix string) {
+	if prefix == "" {
+		return
+	}
+	suffixes := []string{}
+	for cmd := range shellCommands {
+		after, found := strings.CutPrefix(cmd, prefix)
+		if found {
+			suffixes = append(suffixes, after)
+		}
+	}
+	if len(suffixes) == 1 {
+		return suffixes[0]
+	}
+	return
 }
 
 func getWorkingDirectory() string {
