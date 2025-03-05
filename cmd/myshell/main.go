@@ -122,8 +122,8 @@ func readInput(rd io.Reader) (input string) {
 			match, AutoCompleteResult := autocomplete(input)
 			switch AutoCompleteResult {
 			case AUTOCOMPLETE_DIRECT_MATCH:
-				input += match + " "
-				fmt.Fprint(os.Stdout, match+" ")
+				input += match
+				fmt.Fprint(os.Stdout, match)
 				tabPresses = 0
 			case AUTOCOMPLETE_NO_MATCH:
 				fmt.Fprint(os.Stdout, "\a")
@@ -166,7 +166,7 @@ func autocomplete(prefix string) (string, AutoCompleteResult) {
 	}
 
 	if len(suffixes) == 1 {
-		return suffixes[0], AUTOCOMPLETE_DIRECT_MATCH
+		return suffixes[0] + " ", AUTOCOMPLETE_DIRECT_MATCH
 	}
 
 	matches := make([]string, 0, len(suffixes))
