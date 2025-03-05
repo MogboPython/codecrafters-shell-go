@@ -42,11 +42,12 @@ func main() {
 }
 
 func readInput(rd io.Reader) (input string) {
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	fd := int(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(fd)
 	if err != nil {
 		panic(err)
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	defer term.Restore(fd, oldState)
 	r := bufio.NewReader(rd)
 
 	for {
@@ -71,6 +72,8 @@ func readInput(rd io.Reader) (input string) {
 			if suffix != "" {
 				input += suffix + " "
 				fmt.Fprint(os.Stdout, suffix+" ")
+			} else {
+				fmt.Fprint(os.Stdout, "\a")
 			}
 		default:
 			input += string(c)
