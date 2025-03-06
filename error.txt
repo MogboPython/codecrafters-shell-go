@@ -1,2 +1,0 @@
-ls: nonexistent-file: No such file or directory
-ls: nonexistent-file: No such file or directory
